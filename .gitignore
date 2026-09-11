@@ -1,0 +1,4 @@
+nbody
+trajectory.csv
+*.o
+.DS_Store

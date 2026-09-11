@@ -1,0 +1,402 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>N-Body Simulation</title>
+    <style>
+        :root {
+            color-scheme: dark;
+            font-family: Inter, ui-sans-serif, system-ui, -apple-system, sans-serif;
+            background: #05070d;
+            color: #f7f8ff;
+        }
+
+        * { box-sizing: border-box; }
+
+        html, body {
+            width: 100%;
+            height: 100%;
+            margin: 0;
+            overflow: hidden;
+        }
+
+        body {
+            background:
+                radial-gradient(circle at 18% 20%, rgba(73, 92, 180, 0.14), transparent 32%),
+                radial-gradient(circle at 82% 75%, rgba(107, 57, 152, 0.12), transparent 35%),
+                #05070d;
+        }
+
+        canvas {
+            position: fixed;
+            inset: 0;
+            display: block;
+            width: 100vw;
+            height: 100vh;
+        }
+
+        .top-bar {
+            position: fixed;
+            top: 22px;
+            left: 24px;
+            right: 24px;
+            display: flex;
+            align-items: flex-start;
+            justify-content: space-between;
+            gap: 20px;
+            pointer-events: none;
+        }
+
+        .title-group, #time-display, .controls {
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            background: rgba(10, 13, 23, 0.76);
+            backdrop-filter: blur(16px);
+            box-shadow: 0 16px 45px rgba(0, 0, 0, 0.24);
+        }
+
+        .title-group {
+            padding: 14px 17px;
+            border-radius: 14px;
+        }
+
+        h1 {
+            margin: 0;
+            font-size: 16px;
+            font-weight: 600;
+            letter-spacing: 0.03em;
+        }
+
+        #status {
+            margin: 5px 0 0;
+            color: #9da7bd;
+            font-size: 12px;
+        }
+
+        #time-display {
+            padding: 12px 15px;
+            border-radius: 12px;
+            color: #dce3f6;
+            font-size: 13px;
+            font-variant-numeric: tabular-nums;
+        }
+
+        .controls {
+            position: fixed;
+            left: 50%;
+            bottom: 24px;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            width: min(560px, calc(100vw - 32px));
+            padding: 12px;
+            border-radius: 16px;
+            transform: translateX(-50%);
+        }
+
+        button {
+            min-width: 72px;
+            padding: 9px 13px;
+            border: 1px solid rgba(255, 255, 255, 0.13);
+            border-radius: 10px;
+            background: rgba(255, 255, 255, 0.07);
+            color: inherit;
+            font: inherit;
+            cursor: pointer;
+        }
+
+        button:hover:not(:disabled) { background: rgba(255, 255, 255, 0.12); }
+        button:disabled { cursor: not-allowed; opacity: 0.45; }
+
+        .speed-control {
+            display: grid;
+            grid-template-columns: auto 1fr auto;
+            align-items: center;
+            gap: 10px;
+            flex: 1;
+            color: #b7c0d4;
+            font-size: 13px;
+        }
+
+        input[type="range"] {
+            width: 100%;
+            accent-color: #71d7ff;
+        }
+
+        #speed-value {
+            width: 38px;
+            color: #f7f8ff;
+            font-variant-numeric: tabular-nums;
+            text-align: right;
+        }
+
+        @media (max-width: 540px) {
+            .top-bar { top: 14px; left: 14px; right: 14px; }
+            .controls { bottom: 14px; flex-wrap: wrap; }
+            .speed-control { flex-basis: 100%; order: -1; }
+        }
+    </style>
+</head>
+<body>
+    <canvas
+        id="simulation-canvas"
+        role="img"
+        aria-label="Animated three-body figure-eight gravitational simulation">
+    </canvas>
+
+    <header class="top-bar">
+        <div class="title-group">
+            <h1>N-body gravity simulation</h1>
+            <p id="status" aria-live="polite">Loading trajectory.csv…</p>
+        </div>
+        <div id="time-display">t = 0.000</div>
+    </header>
+
+    <div class="controls" aria-label="Animation controls">
+        <button id="play-button" type="button" disabled>Pause</button>
+        <button id="reset-button" type="button" disabled>Reset</button>
+
+        <label class="speed-control" for="speed-input">
+            <span>Speed</span>
+            <input id="speed-input" type="range" min="0.25" max="4"
+                   value="1" step="0.25" disabled>
+            <span id="speed-value">1×</span>
+        </label>
+    </div>
+
+    <script>
+        const canvas = document.getElementById("simulation-canvas");
+        const context = canvas.getContext("2d");
+        const statusText = document.getElementById("status");
+        const timeDisplay = document.getElementById("time-display");
+        const playButton = document.getElementById("play-button");
+        const resetButton = document.getElementById("reset-button");
+        const speedInput = document.getElementById("speed-input");
+        const speedValue = document.getElementById("speed-value");
+
+        const colours = ["#71d7ff", "#ff7bbf", "#ffd166", "#9bffb0"];
+        let trailLength = 650;
+
+        let frames = [];
+        let currentFrameIndex = 0;
+        let playing = true;
+        let playbackSpeed = 1;
+        let lastFrameTime = 0;
+        let viewportWidth = window.innerWidth;
+        let viewportHeight = window.innerHeight;
+        let worldCentreX = 0;
+        let worldCentreY = 0;
+        let worldSpan = 2.5;
+
+        function parseTrajectory(text) {
+            const lines = text.trim().split(/\r?\n/);
+            const header = lines.shift();
+
+            if (header !== "time,particle_id,x,y") {
+                throw new Error("Unexpected trajectory.csv header.");
+            }
+
+            const frameMap = new Map();
+            for (const line of lines) {
+                const [timeText, idText, xText, yText] = line.split(",");
+                const particle = {
+                    id: Number(idText),
+                    x: Number(xText),
+                    y: Number(yText)
+                };
+
+                if (!Number.isFinite(particle.x) || !Number.isFinite(particle.y)) {
+                    continue;
+                }
+
+                if (!frameMap.has(timeText)) {
+                    frameMap.set(timeText, []);
+                }
+                frameMap.get(timeText).push(particle);
+            }
+
+            return Array.from(frameMap, function ([time, particles]) {
+                return { time: Number(time), particles: particles };
+            });
+        }
+
+        function calculateWorldBounds() {
+            let minimumX = Infinity;
+            let maximumX = -Infinity;
+            let minimumY = Infinity;
+            let maximumY = -Infinity;
+
+            for (const frame of frames) {
+                for (const particle of frame.particles) {
+                    minimumX = Math.min(minimumX, particle.x);
+                    maximumX = Math.max(maximumX, particle.x);
+                    minimumY = Math.min(minimumY, particle.y);
+                    maximumY = Math.max(maximumY, particle.y);
+                }
+            }
+
+            worldCentreX = (minimumX + maximumX) / 2;
+            worldCentreY = (minimumY + maximumY) / 2;
+            worldSpan = Math.max(maximumX - minimumX, maximumY - minimumY, 0.1) * 1.2;
+        }
+
+        function resizeCanvas() {
+            const pixelRatio = Math.min(window.devicePixelRatio || 1, 2);
+            viewportWidth = window.innerWidth;
+            viewportHeight = window.innerHeight;
+            canvas.width = Math.floor(viewportWidth * pixelRatio);
+            canvas.height = Math.floor(viewportHeight * pixelRatio);
+            context.setTransform(pixelRatio, 0, 0, pixelRatio, 0, 0);
+
+            if (frames.length > 0) {
+                drawFrame(currentFrameIndex);
+            }
+        }
+
+        function worldToScreen(particle) {
+            const scale = Math.min(viewportWidth, viewportHeight) * 0.72 / worldSpan;
+            return {
+                x: viewportWidth / 2 + (particle.x - worldCentreX) * scale,
+                y: viewportHeight / 2 - (particle.y - worldCentreY) * scale
+            };
+        }
+
+        function drawTrail(particleId, colour, frameIndex) {
+            const firstFrame = Math.max(0, frameIndex - trailLength);
+            let started = false;
+            context.beginPath();
+
+            for (let index = firstFrame; index <= frameIndex; ++index) {
+                const particle = frames[index].particles[particleId];
+                if (!particle || particle.id !== particleId) {
+                    continue;
+                }
+
+                const screen = worldToScreen(particle);
+                if (!started) {
+                    context.moveTo(screen.x, screen.y);
+                    started = true;
+                } else {
+                    context.lineTo(screen.x, screen.y);
+                }
+            }
+
+            context.strokeStyle = colour + "80";
+            context.lineWidth = 1.6;
+            context.stroke();
+        }
+
+        function drawFrame(frameIndex) {
+            const frame = frames[frameIndex];
+            context.clearRect(0, 0, viewportWidth, viewportHeight);
+
+            for (const particle of frame.particles) {
+                const colour = colours[particle.id % colours.length];
+                drawTrail(particle.id, colour, frameIndex);
+            }
+
+            for (const particle of frame.particles) {
+                const colour = colours[particle.id % colours.length];
+                const screen = worldToScreen(particle);
+
+                context.save();
+                context.beginPath();
+                context.arc(screen.x, screen.y, 7, 0, 2 * Math.PI);
+                context.fillStyle = colour;
+                context.shadowColor = colour;
+                context.shadowBlur = 18;
+                context.fill();
+                context.restore();
+
+                context.beginPath();
+                context.arc(screen.x, screen.y, 2.5, 0, 2 * Math.PI);
+                context.fillStyle = "#ffffff";
+                context.fill();
+            }
+
+            timeDisplay.textContent = "t = " + frame.time.toFixed(3);
+        }
+
+        function animationLoop(timestamp) {
+            if (playing && frames.length > 0) {
+                if (lastFrameTime === 0) {
+                    lastFrameTime = timestamp;
+                }
+
+                const frameDuration = 1000 / (60 * playbackSpeed);
+                const elapsed = timestamp - lastFrameTime;
+                if (elapsed >= frameDuration) {
+                    const framesToAdvance = Math.max(1, Math.floor(elapsed / frameDuration));
+                    currentFrameIndex = (currentFrameIndex + framesToAdvance) % frames.length;
+                    lastFrameTime = timestamp;
+                    drawFrame(currentFrameIndex);
+                }
+            }
+
+            window.requestAnimationFrame(animationLoop);
+        }
+
+        async function loadTrajectory() {
+            try {
+                const response = await fetch("./trajectory.csv", {cache: "no-store"});
+                if (!response.ok) {
+                    throw new Error("trajectory.csv returned " + response.status);
+                }
+
+                frames = parseTrajectory(await response.text());
+                if (frames.length === 0) {
+                    throw new Error("trajectory.csv contains no frames.");
+                }
+
+                calculateWorldBounds();
+                currentFrameIndex = 0;
+                playing = true;
+                playButton.textContent = "Pause";
+                playButton.disabled = false;
+                resetButton.disabled = false;
+                speedInput.disabled = false;
+
+                const bodyCount = frames[0].particles.length;
+                trailLength = bodyCount <= 10
+                    ? 650
+                    : Math.max(50, Math.floor(6000 / bodyCount));
+                statusText.textContent =
+                    frames.length.toLocaleString() + " frames · " + bodyCount + " bodies";
+                drawFrame(currentFrameIndex);
+            } catch (error) {
+                playing = false;
+                statusText.textContent =
+                    "Could not load trajectory.csv. Open this page through the local server.";
+                console.error(error);
+            }
+        }
+
+        playButton.addEventListener("click", function () {
+            playing = !playing;
+            playButton.textContent = playing ? "Pause" : "Play";
+            lastFrameTime = performance.now();
+        });
+
+        resetButton.addEventListener("click", function () {
+            currentFrameIndex = 0;
+            lastFrameTime = performance.now();
+            drawFrame(currentFrameIndex);
+        });
+
+        speedInput.addEventListener("input", function () {
+            playbackSpeed = Number(speedInput.value);
+            speedValue.textContent = playbackSpeed.toFixed(2).replace(/\.00$/, "") + "×";
+            lastFrameTime = performance.now();
+        });
+
+        window.addEventListener("resize", resizeCanvas);
+        document.addEventListener("visibilitychange", function () {
+            lastFrameTime = performance.now();
+        });
+
+        resizeCanvas();
+        loadTrajectory();
+        window.requestAnimationFrame(animationLoop);
+    </script>
+</body>
+</html>
