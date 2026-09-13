@@ -1,10 +1,12 @@
 # N-Body Gravity Simulator
 
-A two-dimensional Newtonian gravity simulation written in C++. The project compares numerical integration methods and will later compare the direct force calculation with the Barnes-Hut algorithm.
+A two-dimensional Newtonian gravity simulation written in C++. The project compares numerical integration methods and direct force calculation with the Barnes-Hut algorithm.
 
 ## Current features
 
 - Direct O(n²) gravitational force calculation
+- Barnes-Hut quadtree force approximation
+- Direct-versus-Barnes-Hut acceleration error measurement
 - Euler and Velocity Verlet integration
 - Energy and energy-drift measurements
 - Random systems containing 1–100 bodies
@@ -14,7 +16,7 @@ A two-dimensional Newtonian gravity simulation written in C++. The project compa
 ## Build and run
 
 ```bash
-c++ -std=c++20 -O2 -Wall -Wextra -Wpedantic main.cpp -o nbody
+make
 ./nbody
 ```
 
@@ -38,7 +40,6 @@ Then open [http://localhost:8000/viewer.html](http://localhost:8000/viewer.html)
 
 ## Roadmap
 
-- Implement a Barnes-Hut quadtree
 - Benchmark direct and Barnes-Hut force calculations
 - Compare numerical accuracy and energy conservation
 - Add automated tests

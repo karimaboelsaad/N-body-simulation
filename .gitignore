@@ -1,4 +1,5 @@
 nbody
 trajectory.csv
 *.o
+build/
 .DS_Store
