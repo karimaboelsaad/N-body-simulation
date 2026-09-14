@@ -101,3 +101,32 @@ std::vector<Particle> make_random_system(
 
     return particles;
 }
+
+std::vector<Particle> make_uniform_cloud(
+    std::size_t particle_count,
+    unsigned int seed){
+    if(particle_count == 0){
+        throw std::invalid_argument("particle_count must be greater than zero");
+    }
+
+    std::mt19937 generator(seed);
+    std::uniform_real_distribution<double> position_distribution(-1.0, 1.0);
+    std::vector<Particle> particles;
+    particles.reserve(particle_count);
+
+    const double particle_mass =
+        1.0 / static_cast<double>(particle_count);
+
+    for(std::size_t index = 0; index < particle_count; ++index){
+        particles.push_back(Particle{
+            particle_mass,
+            Vec2{
+                position_distribution(generator),
+                position_distribution(generator)
+            },
+            Vec2{0.0, 0.0}
+        });
+    }
+
+    return particles;
+}

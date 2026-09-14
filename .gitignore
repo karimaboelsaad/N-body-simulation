@@ -1,5 +1,7 @@
 nbody
+nbody_tests
 trajectory.csv
 *.o
 build/
 .DS_Store
+__pycache__/

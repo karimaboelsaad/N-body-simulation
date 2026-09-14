@@ -1,3 +1,4 @@
+#include "experiments.hpp"
 #include "gravity.hpp"
 #include "integrators.hpp"
 #include "io.hpp"
@@ -15,10 +16,35 @@ int main(int argc, char* argv[]){
     std::size_t particle_count = 0;
     const unsigned int seed = std::random_device{}();
 
+    if(scenario == "benchmark"){
+        if(argc > 2){
+            std::cerr << "Usage: " << argv[0]
+                      << " [random | figure-eight | benchmark | accuracy]\n";
+            return 1;
+        }
+
+        run_benchmark_experiment("benchmark.csv");
+        return 0;
+    }
+
+    if(scenario == "accuracy"){
+        if(argc > 2){
+            std::cerr << "Usage: " << argv[0]
+                      << " [random | figure-eight | benchmark | accuracy]\n";
+            return 1;
+        }
+
+        run_accuracy_experiments(
+            "integrator_accuracy.csv",
+            "theta_accuracy.csv"
+        );
+        return 0;
+    }
+
     if(scenario == "random"){
         if(argc > 2){
             std::cerr << "Usage: " << argv[0]
-                      << " [random | figure-eight]\n";
+                      << " [random | figure-eight | benchmark | accuracy]\n";
             return 1;
         }
 
@@ -30,11 +56,11 @@ int main(int argc, char* argv[]){
         }
     } else if(scenario != "figure-eight"){
         std::cerr << "Usage: " << argv[0]
-                  << " [random | figure-eight]\n";
+                  << " [random | figure-eight | benchmark | accuracy]\n";
         return 1;
     } else if(argc > 2){
         std::cerr << "Usage: " << argv[0]
-                  << " [random | figure-eight]\n";
+                  << " [random | figure-eight | benchmark | accuracy]\n";
         return 1;
     }
 
