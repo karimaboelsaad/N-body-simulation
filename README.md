@@ -4,7 +4,7 @@
 
 A two-dimensional Newtonian gravity simulation written in C++. The project compares numerical integration methods and direct force calculation with the Barnes-Hut algorithm.
 
-![Twenty-body orbital simulation](assets/simulation-preview.png)
+![Browser visualisation of a twenty-body orbital simulation](assets/simulation-preview.png)
 
 ## Current features
 
@@ -130,13 +130,13 @@ For 5,000 particles, changing the Barnes-Hut opening angle shows the expected ac
 
 The complete measured data is available in `benchmark.csv`, `integrator_accuracy.csv`, and `theta_accuracy.csv`.
 
-The figures are generated from the result CSV files and `trajectory.csv`:
+The three result graphs are generated from the experiment CSV files:
 
 ```bash
 python3 scripts/plot_results.py
 ```
 
-Run a simulation first so `trajectory.csv` exists. This optional script requires Python and Pillow; it is not needed to build or run the C++ simulator.
+This optional script requires Python and Pillow; it is not needed to build or run the C++ simulator. The simulation image at the top of this README is a screenshot of the browser viewer.
 
 ## Design decisions
 

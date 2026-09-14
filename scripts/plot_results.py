@@ -6,8 +6,6 @@ from __future__ import annotations
 
 import csv
 import math
-import random
-from collections import defaultdict
 from pathlib import Path
 
 from PIL import Image, ImageDraw, ImageFont
@@ -209,77 +207,11 @@ def plot_theta_tradeoff() -> None:
     image.save(ASSETS / "theta-tradeoff.png", optimize=True)
 
 
-def plot_simulation_preview() -> None:
-    frames: dict[float, list[tuple[int, float, float]]] = defaultdict(list)
-    with (ROOT / "trajectory.csv").open(newline="", encoding="utf-8") as source:
-        for row in csv.DictReader(source):
-            frames[float(row["time"])].append(
-                (int(row["particle_id"]), float(row["x"]), float(row["y"]))
-            )
-    times = sorted(frames)
-    if not times:
-        raise ValueError("trajectory.csv contains no particle positions")
-
-    image = Image.new("RGB", (WIDTH, HEIGHT), "#04070d")
-    draw = ImageDraw.Draw(image, "RGBA")
-    rng = random.Random(42)
-    for _ in range(360):
-        x, y = rng.randrange(WIDTH), rng.randrange(HEIGHT)
-        alpha = rng.randrange(30, 115)
-        radius = 1 if rng.random() < 0.92 else 2
-        draw.ellipse((x - radius, y - radius, x + radius, y + radius),
-                     fill=(190, 215, 255, alpha))
-
-    trail_times = times[max(0, len(times) - 650):]
-    by_particle: dict[int, list[tuple[float, float]]] = defaultdict(list)
-    for time in trail_times:
-        for particle_id, x, y in frames[time]:
-            by_particle[particle_id].append((x, y))
-
-    all_points = [point for points in by_particle.values() for point in points]
-    min_x = min(point[0] for point in all_points)
-    max_x = max(point[0] for point in all_points)
-    min_y = min(point[1] for point in all_points)
-    max_y = max(point[1] for point in all_points)
-    centre_x, centre_y = (min_x + max_x) / 2, (min_y + max_y) / 2
-    span = max(max_x - min_x, max_y - min_y, 0.1) * 1.18
-    scale = min(WIDTH, HEIGHT) * 0.72 / span
-    to_screen = lambda point: (
-        WIDTH / 2 + (point[0] - centre_x) * scale,
-        HEIGHT / 2 - (point[1] - centre_y) * scale,
-    )
-
-    colours = [
-        "#71d7ff", "#ff7bbf", "#ffd166", "#9bffb0", "#a78bfa",
-        "#fb923c", "#22d3ee", "#f472b6", "#bef264", "#60a5fa",
-    ]
-    for particle_id in sorted(by_particle):
-        screen_points = [to_screen(point) for point in by_particle[particle_id]]
-        colour = "#ffd166" if particle_id == 0 else colours[particle_id % len(colours)]
-        draw.line(screen_points, fill=colour + "70", width=2, joint="curve")
-        x, y = screen_points[-1]
-        radius = 13 if particle_id == 0 else 6
-        draw.ellipse((x - radius * 2, y - radius * 2,
-                      x + radius * 2, y + radius * 2), fill=colour + "18")
-        draw.ellipse((x - radius, y - radius, x + radius, y + radius),
-                     fill=colour, outline="#ffffffcc", width=1)
-
-    draw.rounded_rectangle((44, 42, 650, 142), radius=18,
-                           fill="#0a0d17d8", outline="#ffffff22", width=2)
-    draw.text((70, 62), "N-body gravity simulation", fill="white",
-              font=font(30, bold=True))
-    draw.text((70, 109),
-              f"Barnes–Hut + Velocity Verlet  |  {len(by_particle)} bodies  |  t = {times[-1]:.2f}",
-              fill="#aeb9cc", font=SMALL_FONT)
-    image.save(ASSETS / "simulation-preview.png", optimize=True)
-
-
 def main() -> None:
     ASSETS.mkdir(parents=True, exist_ok=True)
     plot_benchmark()
     plot_energy_drift()
     plot_theta_tradeoff()
-    plot_simulation_preview()
     print("Generated README figures in assets/")
 
 
